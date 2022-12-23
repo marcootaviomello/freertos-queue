@@ -42,14 +42,16 @@ typedef struct Message {
 QueueHandle_t h_queue1; /*vai armazenar o tempo do delay*/
 QueueHandle_t h_queue2; /*Vai armazenar a string blinked*/
 TaskHandle_t h_taskA; 
+TaskHandle_t h_taskB; 
 
 void taskA (void *parameter)
 {
     Message msg_rcvd;
     char buf_serial[BUFFER_LEN];
-    char buf_delay_value[5];
+    char buf_delay_value[6];
     uint8_t indice = 0;
     uint8_t aux_control = 0;
+    uint32_t delay_led = 0;
     char c;
 
     ZeroMemory(buf_serial);
@@ -87,8 +89,6 @@ void taskA (void *parameter)
                 com 'delay ' */
                 if (memcmp(buf_serial, CMD_PREFIX, 6) == 0)
                 {
-                    Serial.println("Recebeu a string de configuracao.");
-
                     int j = 0;
 
                     while (aux_control == 0)
@@ -108,6 +108,18 @@ void taskA (void *parameter)
                     Serial.print("DELAY TIME >>>> ");
                     Serial.println(buf_delay_value);
 
+                    delay_led = atoi(buf_delay_value);
+
+                    /*Grava o dado na Queue 1*/
+                    if (xQueueSend(h_queue1, (void *)&delay_led, 10) != pdTRUE) 
+                    {
+                        Serial.println("[TASK A]: Nao foi possivel gravar o delay na queue 1");
+                    }
+                    else
+                    {
+                        Serial.println("[TASK A]: Novo delay inserido na queue1...");
+                    }
+
                     aux_control = 0;
                     ZeroMemory(buf_serial);
                     ZeroMemory(buf_delay_value);
@@ -121,15 +133,30 @@ void taskA (void *parameter)
                 }
             }
         }
-
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
 
+
+void taskB (void *parameter)
+{
+
+    /*Inicia o blink com o  default de 1000 ms*/
+    uint32_t delay_timer = 1000;
+    int count_blink = 0;
+    pinMode(LED_BUILTIN, OUTPUT);
+
+    for(;;)
+    {
+
+    }
+
+}
+
 void setup()
 {
-    h_queue1 = xQueueCreate( MAX_ELEMENTS_QUEUE, sizeof( int ));
+    h_queue1 = xQueueCreate( 1, sizeof( uint32_t ));
 	h_queue2 = xQueueCreate( MAX_ELEMENTS_QUEUE, sizeof( Message ));
 
     /* Verifica de algumas das Queues foi não foi criada e está NULL*/
@@ -138,14 +165,6 @@ void setup()
 
     Serial.begin(115200);
     xTaskCreatePinnedToCore(taskA, "TASK_A", 1024, NULL, 1, &h_taskA, APP_CPU_NUM);
-
-    String str_teste = "teste queue";
-
-    // if(xQueueSend(h_queue2, (void *) &str_teste, 10) != pdTRUE)
-    // {
-    //     Serial.println("Queue full");
-    // }
-
 }
 
 void loop()
