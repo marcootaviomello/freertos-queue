@@ -34,7 +34,7 @@ encapsulates the string and this number.
 /* Criando  a estrutura sugerida no ultimo paragrafo que tera o cabecalho
 Blinked: + contador*/
 typedef struct Message {
-    char body[20];
+    char body[10];
     int contador;
 } Message;
 
@@ -63,7 +63,7 @@ void taskA (void *parameter)
         if (xQueueReceive(h_queue2, (void *)&msg_rcvd, 0) == pdTRUE) 
         {
             Serial.print("[TASK A]: TEM DADO NA QUEUE 2 >> ");
-            Serial.println(msg_rcvd.body);
+            Serial.print(msg_rcvd.body);
             Serial.println(msg_rcvd.contador);
         }
 
@@ -144,11 +144,44 @@ void taskB (void *parameter)
 
     /*Inicia o blink com o  default de 1000 ms*/
     uint32_t delay_timer = 1000;
-    int count_blink = 0;
+    uint8_t count_blink = 0;
+    int gerenal_counter = 0;
+    char str_base[] = "Blinked: ";
+    Message msg_to_send;
     pinMode(LED_BUILTIN, OUTPUT);
 
     for(;;)
     {
+        /*blink LED*/
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+        vTaskDelay(pdMS_TO_TICKS(delay_timer));
+        count_blink ++;
+
+        if (xQueueReceive(h_queue1, (void *)&delay_timer, 0) == pdTRUE) 
+        {
+            Serial.print("[TASK B]: Delay Atualizado");
+        }
+
+        if (count_blink == 100)
+        {
+            count_blink = 0;
+            gerenal_counter ++;
+
+            strcpy(msg_to_send.body, str_base);
+            msg_to_send.contador = gerenal_counter;
+
+            if (xQueueSend(h_queue2, (void *)&msg_to_send, 10) != pdTRUE) 
+            {
+                Serial.println("[TASK B]: Blinked gravado na queue2");
+            }
+            else
+            {
+                Serial.println("[TASK B]: Nao foi possivel gravar na queue 2");
+            }
+
+            /*Grava dados na Queue 2 utilizando a estrutura*/
+
+        }
 
     }
 
@@ -165,6 +198,7 @@ void setup()
 
     Serial.begin(115200);
     xTaskCreatePinnedToCore(taskA, "TASK_A", 1024, NULL, 1, &h_taskA, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(taskB, "TASK_B", 1024, NULL, 1, &h_taskB, APP_CPU_NUM);
 }
 
 void loop()
